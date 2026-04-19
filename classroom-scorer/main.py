@@ -57,39 +57,27 @@ async def score_answer(req: ScoreRequest, token: str = Depends(verify_token)):
 async def llm_score(req: ScoreRequest) -> ScoreResponse:
     standard_line = f"标准答案：{req.standard_answer}" if req.standard_answer else ""
 
-    prompt = f"""你是资深教学评估专家。请严格按以下要求对学生回答评分。
-
-【评估信息】
-课程主题：{req.topic}
-知识点：{req.knowledge_point}
+    prompt = f"""评估学生回答。主题：{req.topic}，知识点：{req.knowledge_point}。
 {"题目：" + req.question if req.question else ""}
 {standard_line}
 
-【学生回答】
-{req.student_answer}
+学生回答：{req.student_answer}
 
-【评分规则】（总分 10 分）
-1. 准确性（0-4 分）：概念是否正确、有无原理性错误
-2. 完整性（0-3 分）：是否覆盖该知识点的核心要点
-3. 表达清晰度（0-2 分）：逻辑是否连贯、语言是否准确
-4. 深度与迁移（0-1 分）：是否有自己的理解、举例或延伸
+从准确性(0-4)、完整性(0-3)、清晰度(0-2)、深度(0-1)评分，总分10。
+只输出JSON：{{"score":整数,"level":"优秀"/"良好"/"一般"/"需加强","feedback":"2句评价","knowledge_gap":"1句漏洞或无","suggestion":"1句建议"}}"""
 
-【输出格式】
-必须且仅输出以下 JSON，不要 markdown 代码块、不要解释：
-{{"score": 整数, "level": "优秀"/"良好"/"一般"/"需加强", "feedback": "2-3句具体评价", "knowledge_gap": "1句知识漏洞描述，无则写'无明显漏洞'", "suggestion": "1句改进建议"}}"""
-
-    async with httpx.AsyncClient(timeout=8.0) as client:
+    async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.post(
             f"{LLM_API_BASE}/chat/completions",
             headers={"Authorization": f"Bearer {LLM_API_KEY}"},
             json={
                 "model": LLM_MODEL,
                 "messages": [
-                    {"role": "system", "content": "你只输出纯 JSON，不要任何解释、markdown 代码块标记或其他文字。"},
+                    {"role": "system", "content": "你只输出纯 JSON，不要任何解释。"},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.2,
-                "max_tokens": 400
+                "max_tokens": 200
             }
         )
         resp.raise_for_status()
@@ -190,3 +178,4 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok", "llm_ready": bool(LLM_API_KEY)}
+
